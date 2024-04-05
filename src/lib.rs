@@ -244,6 +244,7 @@ impl PeDll {
         }
     }
 
+    // TODO: learn more about implicit and explicit linking, especially about delayed-loaded DLL option for implicit linking
     fn resolve_imports(dll: &ParsedDll, image_base: ptr::NonNull<c_void>) {
         let Some(import_data_iter) = dll.import_data() else {
             return;
