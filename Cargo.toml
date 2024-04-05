@@ -1,15 +1,20 @@
 [package]
 name = "reflective_pe_dll_loader"
-version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+version = "0.1.0"
+authors = ["Dmitrii Demenev <demenev.dmitriy1@gmail.com>"]
+description = "Reflective PECOFF DLL loader. Loads a DLL from memory for execution."
+documentation = "https://docs.rs/reflective_pe_dll_loader"
+readme = "README.md"
+keywords = ["shared", "dylib", "dll", "loader", "load", "pe"]
+categories = ["api-bindings"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/JohnScience/reflective_pe_dll_loader"
 
 [dependencies]
 goblin = "0.8.0"
 thiserror = "1.0.58"
-winapi = { version = "0.3.9", features = [
-    "memoryapi",
-    "winnt",
-    "libloaderapi",
-] }
+
+[dependencies.winapi]
+version = "0.3.9"
+features = ["memoryapi", "winnt", "libloaderapi"]

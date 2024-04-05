@@ -1,5 +1,11 @@
 # Reflective PE COFF DLL loader
 
+[![Crates.io](https://img.shields.io/crates/v/reflective_pe_dll_loader)](https://crates.io/crates/reflective_pe_dll_loader)
+[![Downloads](https://img.shields.io/crates/d/reflective_pe_dll_loader.svg)](https://crates.io/crates/reflective_pe_dll_loader)
+[![Documentation](https://docs.rs/reflective_pe_dll_loader/badge.svg)](https://docs.rs/reflective_pe_dll_loader)
+[![License](https://img.shields.io/crates/l/reflective_pe_dll_loader)](https://crates.io/crates/reflective_pe_dll_loader)
+[![Dependency Status](https://deps.rs/repo/github/JohnScience/reflective_pe_dll_loader/status.svg)](https://deps.rs/repo/github/JohnScience/reflective_pe_dll_loader)
+
 A loader is a program that loads some executable code (e.g. in ELF, PE COFF, or Mach-O formats) into memory so that it can be executed.
 
 A reflective loader is such a loader that loads the executable code from a memory buffer, rather than from a file on disk.
