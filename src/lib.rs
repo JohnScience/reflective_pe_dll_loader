@@ -1,5 +1,8 @@
 #![doc = include_str!("../README.md")]
 
+#[cfg(not(windows))]
+compile_error!("This crate is only available on Windows.");
+
 use core::panic;
 use core::ptr;
 use core::ptr::NonNull;
