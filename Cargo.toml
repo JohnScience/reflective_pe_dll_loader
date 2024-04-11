@@ -1,7 +1,7 @@
 [package]
 name = "reflective_pe_dll_loader"
 edition = "2021"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Dmitrii Demenev <demenev.dmitriy1@gmail.com>"]
 description = "Reflective PECOFF DLL loader. Loads a DLL from memory for execution."
 documentation = "https://docs.rs/reflective_pe_dll_loader"

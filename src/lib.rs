@@ -11,6 +11,8 @@ use goblin::pe::section_table::{IMAGE_SCN_MEM_EXECUTE, IMAGE_SCN_MEM_READ, IMAGE
 use winapi::ctypes::c_void;
 use winapi::shared::minwindef::HINSTANCE;
 use winapi::um::memoryapi::VirtualAlloc;
+use winapi::um::memoryapi::VirtualFree;
+use winapi::um::winnt::DLL_THREAD_DETACH;
 use winapi::um::winnt::{
     DLL_THREAD_ATTACH, MEM_COMMIT, MEM_RESERVE, PAGE_EXECUTE, PAGE_EXECUTE_READ,
     PAGE_EXECUTE_READWRITE, PAGE_EXECUTE_WRITECOPY, PAGE_NOACCESS, PAGE_READONLY, PAGE_READWRITE,
@@ -30,8 +32,9 @@ use windows::*;
 
 /// A Windows PECOFF DLL loaded into memory.
 pub struct PeDll {
-    /// The base address of the image in memory.
-    pub image_base: ptr::NonNull<c_void>,
+    image_base: ptr::NonNull<c_void>,
+    image_size: usize,
+    dll_main: Option<DllEntryProc>,
     export_symbols: Vec<ExportSymbol>,
 }
 
@@ -128,7 +131,9 @@ pub struct VirtualProtectError {
 
 impl PeDll {
     // Allocate memory for the image
-    fn allocate_memory(dll: &ParsedDll) -> Result<ptr::NonNull<c_void>, MemoryAllocationError> {
+    fn allocate_memory(
+        dll: &ParsedDll,
+    ) -> Result<(ptr::NonNull<c_void>, usize), MemoryAllocationError> {
         let image_size: usize = dll.image_size();
 
         let preferred_base: *mut c_void = dll.image_base();
@@ -136,7 +141,7 @@ impl PeDll {
         let image_base: *mut c_void =
             unsafe { VirtualAlloc(preferred_base, image_size, MEM_RESERVE, PAGE_READWRITE) };
         match ptr::NonNull::new(image_base) {
-            Some(image_base) => Ok(image_base),
+            Some(image_base) => Ok((image_base, image_size)),
             None => Err(MemoryAllocationError {
                 inner: std::io::Error::last_os_error(),
                 dll_name: dll.name().to_string(),
@@ -208,6 +213,7 @@ impl PeDll {
     }
 
     // See https://github.com/HotKeyIt/ahkdll/blob/818386f5af7e6000d945801838d4e80a9e530c0d/source/MemoryModule.cpp#L476
+    // Q: should we account for TLS (https://github.com/wine-mirror/wine/blob/8a3b0d7bc317aada750769af8f82762c7001acad/dlls/ntdll/loader.c#L1436-L1480)?
     fn perform_base_relocation(dll: &ParsedDll, image_base: ptr::NonNull<c_void>, delta: isize) {
         let DataDirectory {
             virtual_address: base_relocation_table_rva,
@@ -354,42 +360,48 @@ impl PeDll {
         Ok(())
     }
 
-    fn notify_dll(dll: &ParsedDll, image_base: ptr::NonNull<c_void>) {
-        let entrypoint: DllEntryProc = {
-            let address_of_entrypoint = dll.address_of_entry_point();
+    fn notify_dll(dll: &ParsedDll, image_base: ptr::NonNull<c_void>) -> Option<DllEntryProc> {
+        let dll_main: DllEntryProc = {
+            let dll_main_rva = dll.address_of_entry_point();
 
-            if address_of_entrypoint == 0 {
-                return;
+            if dll_main_rva == 0 {
+                return None;
             }
 
-            let entrypoint_va: *const c_void =
-                (image_base.as_ptr() as usize + address_of_entrypoint) as *const c_void;
+            let dll_main_va: *const c_void =
+                (image_base.as_ptr() as usize + dll_main_rva) as *const c_void;
 
-            unsafe { core::mem::transmute(entrypoint_va) }
+            unsafe { core::mem::transmute(dll_main_va) }
         };
 
         // https://learn.microsoft.com/en-us/windows/win32/dlls/dllmain#parameters
         // https://learn.microsoft.com/en-us/windows/win32/dlls/dllmain
         // DLL_PROCESS_ATTACH doesn't actually work
         unsafe {
-            entrypoint(
+            dll_main(
                 image_base.as_ptr() as HINSTANCE,
                 DLL_THREAD_ATTACH,
                 core::ptr::null_mut(),
             );
-        }
+        };
+
+        Some(dll_main)
     }
 
     /// Load a PE DLL from memory.
     pub fn new(bytes: &[u8]) -> Result<Self, PeDllLoadError> {
         let dll = ParsedDll::new(bytes)?;
-        let image_base: NonNull<c_void> = Self::allocate_memory(&dll)?;
+        let (image_base, image_size): (NonNull<c_void>, usize) = Self::allocate_memory(&dll)?;
         Self::copy_sections(&dll, image_base, &bytes)?;
         let delta = Self::delta(&dll, image_base);
         Self::perform_base_relocation(&dll, image_base, delta);
         Self::resolve_imports(&dll, image_base);
         Self::protect_memory(&dll, image_base)?;
-        Self::notify_dll(&dll, image_base);
+
+        // TODO: call TLS callbacks
+        // https://github.com/schellingb/DLLFromMemory-net/blob/7b1773c8035429e6fb1ab4b8fd0a52d2a4810efc/DLLFromMemory.cs#L250-L251
+
+        let dll_main: Option<DllEntryProc> = Self::notify_dll(&dll, image_base);
 
         // TODO: find a way to avoid collecting the symbols
 
@@ -404,6 +416,8 @@ impl PeDll {
 
         let dll = Self {
             image_base,
+            image_size,
+            dll_main,
             export_symbols,
         };
         Ok(dll)
@@ -414,6 +428,8 @@ impl PeDll {
         &'a self,
         name: &'b str,
     ) -> Option<Symbol<'a, ptr::NonNull<c_void>>> {
+        // TODO: consider implementing the search manually to utilize binary search
+        // https://github.com/wine-mirror/wine/blob/8a3b0d7bc317aada750769af8f82762c7001acad/dlls/ntdll/loader.c#L1048-L1067
         self.export_symbols
             .iter()
             .find(|export_symbol| export_symbol.name.as_deref() == Some(name))
@@ -421,6 +437,27 @@ impl PeDll {
                 value: export_symbol.va,
                 phantom: core::marker::PhantomData,
             })
+    }
+}
+
+impl Drop for PeDll {
+    fn drop(&mut self) {
+        if let Some(dll_main) = self.dll_main {
+            unsafe {
+                dll_main(
+                    self.image_base.as_ptr() as HINSTANCE,
+                    DLL_THREAD_DETACH,
+                    core::ptr::null_mut(),
+                )
+            };
+        }
+        unsafe {
+            VirtualFree(
+                self.image_base.as_ptr(),
+                self.image_size,
+                winapi::um::winnt::MEM_RELEASE,
+            );
+        }
     }
 }
 

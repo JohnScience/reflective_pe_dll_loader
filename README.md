@@ -27,3 +27,5 @@ assert_eq!(add(1, 2), 3);
 ## Credits
 
 It is largely based on the code from <https://www.joachim-bauch.de/tutorials/loading-a-dll-from-memory/>.
+
+**Note**: the tutorial is incomplete and, for example, does not cover TLS callbacks. This may be a problem for some DLLs but may be fixed in the future.
