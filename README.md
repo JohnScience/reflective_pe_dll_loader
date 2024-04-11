@@ -24,6 +24,10 @@ let add: Symbol<extern "C" fn(i32, i32) -> i32> = {
 assert_eq!(add(1, 2), 3);
 ```
 
+## Recommendations
+
+This crate has limited use cases. If you can avoid building a dynamic library that you'd embed in your executable and instead create an object file that you'd statically link with your executable, you should do that.
+
 ## Credits
 
 It is largely based on the code from <https://www.joachim-bauch.de/tutorials/loading-a-dll-from-memory/>.

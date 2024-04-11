@@ -33,7 +33,9 @@ use windows::*;
 /// A Windows PECOFF DLL loaded into memory.
 pub struct PeDll {
     image_base: ptr::NonNull<c_void>,
+    // needed for freeing the memory
     image_size: usize,
+    // needed for calling DllMain with DLL_THREAD_DETACH on drop
     dll_main: Option<DllEntryProc>,
     export_symbols: Vec<ExportSymbol>,
 }
