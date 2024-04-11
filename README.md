@@ -24,6 +24,10 @@ let add: Symbol<extern "C" fn(i32, i32) -> i32> = {
 assert_eq!(add(1, 2), 3);
 ```
 
+## Warning
+
+No cleanup logic yet. It is not a problem for short-living applications but is something to be aware about.
+
 ## Credits
 
 It is largely based on the code from <https://www.joachim-bauch.de/tutorials/loading-a-dll-from-memory/>.
