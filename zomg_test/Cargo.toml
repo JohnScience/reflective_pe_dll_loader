@@ -1,0 +1,16 @@
+[package]
+name = "zomg_test"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+
+[dependencies.windows]
+version = "0.61.1"
+features = [
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_SystemServices",
+]

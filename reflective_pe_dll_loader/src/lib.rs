@@ -22,7 +22,11 @@ mod parsed_dll;
 mod windows;
 
 use parsed_dll::ParsedDll;
-use windows::*;
+use windows::{
+    get_system_info, rva_to_va, section_file_ptr_range, section_size, section_va_range,
+    BaseRelocationBlock, BaseRelocationEntry, DllEntryProc, SystemInfo,
+    IMAGE_SIZEOF_BASE_RELOCATION,
+};
 
 // The code below is written based on <https://www.joachim-bauch.de/tutorials/loading-a-dll-from-memory/>
 
@@ -63,6 +67,16 @@ impl<'a> Symbol<'a, ptr::NonNull<c_void>> {
             value: unsafe { core::mem::transmute_copy(&self.value) },
             phantom: core::marker::PhantomData,
         }
+    }
+
+    pub unsafe fn assert_can_be_executed(&self) {
+        let va = self.value.as_ptr() as u32;
+        let system_info: SystemInfo = get_system_info();
+        let page_size = system_info.page_size;
+        let page_start = va & !(page_size - 1);
+        let page_end = page_start + page_size - 1;
+        let page_prot: u32 = todo!();
+        debug_assert!(page_prot != 0);
     }
 }
 
@@ -478,5 +492,17 @@ mod tests {
         };
 
         assert_eq!(add(1, 2), 3);
+    }
+
+    #[test]
+    fn test_zomg() {
+        let bytes = std::fs::read("../target/debug/zomg_test.dll").unwrap();
+        let pe_dll = PeDll::new(&bytes).unwrap();
+        let go: Symbol<extern "C" fn()> = {
+            let symbol = pe_dll.get_symbol_by_name("go").unwrap();
+            unsafe { symbol.assume_type() }
+        };
+        // go.assert_can_be_executed();
+        go();
     }
 }

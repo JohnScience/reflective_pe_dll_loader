@@ -1,3 +1,4 @@
+use std::mem::MaybeUninit;
 use std::ptr;
 
 use winapi::ctypes::c_void;
@@ -32,6 +33,59 @@ pub(crate) struct BaseRelocationEntry(u16);
 pub(crate) struct BaseRelocationBlock {
     pub(crate) virtual_address: u32,
     pub(crate) size_of_block: u32,
+}
+
+#[doc(alias = "DUMMYSTRUCTNAME")]
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct DummyStructName {
+    #[doc(alias = "wProcessorArchitecture")]
+    pub processor_architecture: u16,
+    #[doc(alias = "wReserved")]
+    pub reserved: u16,
+}
+
+#[doc(alias = "DUMMYUNIONNAME")]
+#[repr(C)]
+pub union DummyUnionName {
+    #[doc(alias = "dwOemId")]
+    pub oem_id: u32,
+    #[doc(alias = "DUMMYSTRUCTNAME")]
+    pub dummy_struct: DummyStructName,
+}
+
+#[doc(alias = "_SYSTEM_INFO")]
+#[repr(C)]
+pub(crate) struct SystemInfo {
+    #[doc(alias = "DUMMYUNIONNAME")]
+    pub u: DummyUnionName,
+
+    #[doc(alias = "dwPageSize")]
+    pub page_size: u32,
+
+    #[doc(alias = "lpMinimumApplicationAddress")]
+    pub minimum_application_address: *mut c_void,
+
+    #[doc(alias = "lpMaximumApplicationAddress")]
+    pub maximum_application_address: *mut c_void,
+
+    #[doc(alias = "dwActiveProcessorMask")]
+    pub active_processor_mask: usize,
+
+    #[doc(alias = "dwNumberOfProcessors")]
+    pub number_of_processors: u32,
+
+    #[doc(alias = "dwProcessorType")]
+    pub processor_type: u32,
+
+    #[doc(alias = "dwAllocationGranularity")]
+    pub allocation_granularity: u32,
+
+    #[doc(alias = "wProcessorLevel")]
+    pub processor_level: u16,
+
+    #[doc(alias = "wProcessorRevision")]
+    pub processor_revision: u16,
 }
 
 impl std::fmt::Debug for BaseRelocationEntry {
@@ -140,4 +194,12 @@ pub(crate) fn virtual_protect(
     } else {
         Ok(())
     }
+}
+
+pub(crate) fn get_system_info() -> SystemInfo {
+    let mut system_info: MaybeUninit<SystemInfo> = MaybeUninit::uninit();
+    let out_ptr = system_info.as_mut_ptr() as *mut _;
+    unsafe { winapi::um::sysinfoapi::GetSystemInfo(out_ptr) };
+    let system_info: SystemInfo = unsafe { system_info.assume_init() };
+    system_info
 }
